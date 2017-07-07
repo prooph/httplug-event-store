@@ -152,7 +152,7 @@ final class HttplugEventStore implements EventStore
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/delete/' . urlencode($streamName->toString())),
+            $this->uri->withPath('/delete/' . urlencode($streamName->toString()))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -199,7 +199,7 @@ final class HttplugEventStore implements EventStore
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/has-stream/' . urlencode($streamName->toString())),
+            $this->uri->withPath('/has-stream/' . urlencode($streamName->toString()))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -219,8 +219,7 @@ final class HttplugEventStore implements EventStore
         int $fromNumber = 1,
         int $count = null,
         MetadataMatcher $metadataMatcher = null
-    ): Iterator
-    {
+    ): Iterator {
         // TODO: Implement load() method.
     }
 
@@ -229,8 +228,7 @@ final class HttplugEventStore implements EventStore
         int $fromNumber = null,
         int $count = null,
         MetadataMatcher $metadataMatcher = null
-    ): Iterator
-    {
+    ): Iterator {
         // TODO: Implement loadReverse() method.
     }
 
@@ -239,8 +237,7 @@ final class HttplugEventStore implements EventStore
         ?MetadataMatcher $metadataMatcher,
         int $limit = 20,
         int $offset = 0
-    ): array
-    {
+    ): array {
         // TODO: Implement fetchStreamNames() method.
     }
 
@@ -249,8 +246,7 @@ final class HttplugEventStore implements EventStore
         ?MetadataMatcher $metadataMatcher,
         int $limit = 20,
         int $offset = 0
-    ): array
-    {
+    ): array {
         // TODO: Implement fetchStreamNamesRegex() method.
     }
 
