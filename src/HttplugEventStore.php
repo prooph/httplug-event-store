@@ -82,7 +82,7 @@ final class HttplugEventStore implements EventStore
 
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/streammetadata/' . urlencode($streamName->toString())),
+            $this->uri->withPath('streammetadata/' . urlencode($streamName->toString())),
             [
                 'Content-Type' => 'application/json',
             ],
@@ -122,7 +122,7 @@ final class HttplugEventStore implements EventStore
 
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/stream/' . urlencode($streamName->toString())),
+            $this->uri->withPath('stream/' . urlencode($streamName->toString())),
             [
                 'Content-Type' => 'application/vnd.eventstore.atom+json',
             ],
@@ -156,7 +156,7 @@ final class HttplugEventStore implements EventStore
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/delete/' . urlencode($streamName->toString()))
+            $this->uri->withPath('delete/' . urlencode($streamName->toString()))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -175,7 +175,7 @@ final class HttplugEventStore implements EventStore
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/streammetadata/' . urlencode($streamName->toString())),
+            $this->uri->withPath('streammetadata/' . urlencode($streamName->toString())),
             [
                 'Accept' => 'application/json',
             ]
@@ -203,7 +203,7 @@ final class HttplugEventStore implements EventStore
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/has-stream/' . urlencode($streamName->toString()))
+            $this->uri->withPath('has-stream/' . urlencode($streamName->toString()))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -229,7 +229,7 @@ final class HttplugEventStore implements EventStore
         }
 
         $uri = $this->uri
-            ->withPath('/stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/forward/' . $count)
+            ->withPath('stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/forward/' . $count)
             ->withQuery($this->buildQueryFromMetadataMatcher($metadataMatcher));
 
         $request = $this->requestFactory->createRequest(
@@ -269,7 +269,7 @@ final class HttplugEventStore implements EventStore
         }
 
         $uri = $this->uri
-            ->withPath('/stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/backward/' . $count)
+            ->withPath('stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/backward/' . $count)
             ->withQuery($this->buildQueryFromMetadataMatcher($metadataMatcher));
 
         $request = $this->requestFactory->createRequest(
@@ -311,9 +311,9 @@ final class HttplugEventStore implements EventStore
         }
 
         if (null !== $filter) {
-            $path = '/streams/' . urlencode($filter);
+            $path = 'streams/' . urlencode($filter);
         } else {
-            $path = '/stream';
+            $path = 'stream';
         }
 
         $request = $this->requestFactory->createRequest(
@@ -355,7 +355,7 @@ final class HttplugEventStore implements EventStore
             $query .= '&' . $limitPart;
         }
 
-        $path = '/streams-regex/' . urlencode($filter);
+        $path = 'streams-regex/' . urlencode($filter);
 
         $request = $this->requestFactory->createRequest(
             'GET',
@@ -385,9 +385,9 @@ final class HttplugEventStore implements EventStore
         $query = 'limit=' . $limit . '&offset=' . $offset;
 
         if (null !== $filter) {
-            $path = '/categories/' . urlencode($filter);
+            $path = 'categories/' . urlencode($filter);
         } else {
-            $path = '/categories';
+            $path = 'categories';
         }
 
         $request = $this->requestFactory->createRequest(
@@ -417,7 +417,7 @@ final class HttplugEventStore implements EventStore
     {
         $query = 'limit=' . $limit . '&offset=' . $offset;
 
-        $path = '/categories-regex/' . urlencode($filter);
+        $path = 'categories-regex/' . urlencode($filter);
 
         $request = $this->requestFactory->createRequest(
             'GET',

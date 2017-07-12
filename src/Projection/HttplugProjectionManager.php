@@ -60,8 +60,7 @@ final class HttplugProjectionManager implements ProjectionManager
     public function createProjection(
         string $name,
         array $options = []
-    ): Projector
-    {
+    ): Projector {
         throw new \BadMethodCallException(__METHOD__ . ' not implemented');
     }
 
@@ -69,8 +68,7 @@ final class HttplugProjectionManager implements ProjectionManager
         string $name,
         ReadModel $readModel,
         array $options = []
-    ): ReadModelProjector
-    {
+    ): ReadModelProjector {
         throw new \BadMethodCallException(__METHOD__ . ' not implemented');
     }
 
@@ -84,7 +82,7 @@ final class HttplugProjectionManager implements ProjectionManager
 
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/projection/delete/' . urlencode($name) . '/' . $deleteEmittedEvents)
+            $this->uri->withPath('projection/delete/' . urlencode($name) . '/' . $deleteEmittedEvents)
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -103,7 +101,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/projection/reset/' . urlencode($name))
+            $this->uri->withPath('projection/reset/' . urlencode($name))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -122,7 +120,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('/projection/stop/' . urlencode($name))
+            $this->uri->withPath('projection/stop/' . urlencode($name))
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -174,7 +172,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $query = 'limit=' . $limit . '&offset=' . $offset;
 
-        $path = '/projections-regex/' . urlencode($regex);
+        $path = 'projections-regex/' . urlencode($regex);
 
         $request = $this->requestFactory->createRequest(
             'GET',
@@ -203,7 +201,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/projection/status/' . urlencode($name)),
+            $this->uri->withPath('projection/status/' . urlencode($name)),
             [
                 'Accept' => 'application/json',
             ]
@@ -225,7 +223,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/projection/stream-positions/' . urlencode($name)),
+            $this->uri->withPath('projection/stream-positions/' . urlencode($name)),
             [
                 'Accept' => 'application/json',
             ]
@@ -253,7 +251,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('/projection/state/' . urlencode($name)),
+            $this->uri->withPath('projection/state/' . urlencode($name)),
             [
                 'Accept' => 'application/json',
             ]
