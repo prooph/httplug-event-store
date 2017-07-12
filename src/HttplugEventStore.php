@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace Prooph\EventStore\Httplug;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Http\Client\HttpClient;
 use Http\Discovery\MessageFactoryDiscovery;
 use Http\Message\RequestFactory;
@@ -22,9 +24,11 @@ use Prooph\EventStore\EventStore;
 use Prooph\EventStore\Exception\InvalidArgumentException;
 use Prooph\EventStore\Exception\RuntimeException;
 use Prooph\EventStore\Exception\StreamNotFound;
+use Prooph\EventStore\Metadata\FieldType;
 use Prooph\EventStore\Metadata\MetadataMatcher;
 use Prooph\EventStore\Stream;
 use Prooph\EventStore\StreamName;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
 
 final class HttplugEventStore implements EventStore
@@ -220,7 +224,34 @@ final class HttplugEventStore implements EventStore
         int $count = null,
         MetadataMatcher $metadataMatcher = null
     ): Iterator {
-        // TODO: Implement load() method.
+        if (null === $count) {
+            $count = PHP_INT_MAX;
+        }
+
+        $uri = $this->uri
+            ->withPath('/stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/forward/' . $count)
+            ->withQuery($this->buildQueryFromMetadataMatcher($metadataMatcher));
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $uri,
+            [
+                'Accept' => 'application/vnd.eventstore.atom+json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        switch ($response->getStatusCode()) {
+            case 404:
+                throw StreamNotFound::with($streamName);
+            case 400:
+                throw new InvalidArgumentException($response->getReasonPhrase());
+            case 200:
+                return $this->createIteratorFromResponse($response);
+            default:
+                throw new RuntimeException('Unknown error occurred');
+        }
     }
 
     public function loadReverse(
@@ -229,7 +260,38 @@ final class HttplugEventStore implements EventStore
         int $count = null,
         MetadataMatcher $metadataMatcher = null
     ): Iterator {
-        // TODO: Implement loadReverse() method.
+        if (null === $fromNumber) {
+            $fromNumber = PHP_INT_MAX;
+        }
+
+        if (null === $count) {
+            $count = PHP_INT_MAX;
+        }
+
+        $uri = $this->uri
+            ->withPath('/stream/' . urlencode($streamName->toString()) . '/' . $fromNumber . '/backward/' . $count)
+            ->withQuery($this->buildQueryFromMetadataMatcher($metadataMatcher));
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $uri,
+            [
+                'Accept' => 'application/vnd.eventstore.atom+json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        switch ($response->getStatusCode()) {
+            case 404:
+                throw StreamNotFound::with($streamName);
+            case 400:
+                throw new InvalidArgumentException($response->getReasonPhrase());
+            case 200:
+                return $this->createIteratorFromResponse($response);
+            default:
+                throw new RuntimeException('Unknown error occurred');
+        }
     }
 
     public function fetchStreamNames(
@@ -238,7 +300,43 @@ final class HttplugEventStore implements EventStore
         int $limit = 20,
         int $offset = 0
     ): array {
-        // TODO: Implement fetchStreamNames() method.
+        $limitPart = 'limit=' . $limit . '&offset=' . $offset;
+
+        $query = $this->buildQueryFromMetadataMatcher($metadataMatcher);
+
+        if ($query === '') {
+            $query = $limitPart;
+        } else {
+            $query .= '&' . $limitPart;
+        }
+
+        if (null !== $filter) {
+            $path = '/streams/' . urlencode($filter);
+        } else {
+            $path = '/stream';
+        }
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $this->uri->withPath($path)->withQuery($query),
+            [
+                'Accept' => 'application/json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new RuntimeException('Unknown error occurred');
+        }
+
+        $streamNames = json_decode($response->getBody()->getContents(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Could not json decode response');
+        }
+
+        return $streamNames;
     }
 
     public function fetchStreamNamesRegex(
@@ -247,16 +345,142 @@ final class HttplugEventStore implements EventStore
         int $limit = 20,
         int $offset = 0
     ): array {
-        // TODO: Implement fetchStreamNamesRegex() method.
+        $limitPart = 'limit=' . $limit . '&offset=' . $offset;
+
+        $query = $this->buildQueryFromMetadataMatcher($metadataMatcher);
+
+        if ($query === '') {
+            $query = $limitPart;
+        } else {
+            $query .= '&' . $limitPart;
+        }
+
+        $path = '/streams-regex/' . urlencode($filter);
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $this->uri->withPath($path)->withQuery($query),
+            [
+                'Accept' => 'application/json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new RuntimeException('Unknown error occurred');
+        }
+
+        $streamNames = json_decode($response->getBody()->getContents(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Could not json decode response');
+        }
+
+        return $streamNames;
     }
 
     public function fetchCategoryNames(?string $filter, int $limit = 20, int $offset = 0): array
     {
-        // TODO: Implement fetchCategoryNames() method.
+        $query = 'limit=' . $limit . '&offset=' . $offset;
+
+        if (null !== $filter) {
+            $path = '/categories/' . urlencode($filter);
+        } else {
+            $path = '/categories';
+        }
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $this->uri->withPath($path)->withQuery($query),
+            [
+                'Accept' => 'application/json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new RuntimeException('Unknown error occurred');
+        }
+
+        $categories = json_decode($response->getBody()->getContents(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Could not json decode response');
+        }
+
+        return $categories;
     }
 
     public function fetchCategoryNamesRegex(string $filter, int $limit = 20, int $offset = 0): array
     {
-        // TODO: Implement fetchCategoryNamesRegex() method.
+        $query = 'limit=' . $limit . '&offset=' . $offset;
+
+        $path = '/categories-regex/' . urlencode($filter);
+
+        $request = $this->requestFactory->createRequest(
+            'GET',
+            $this->uri->withPath($path)->withQuery($query),
+            [
+                'Accept' => 'application/json',
+            ]
+        );
+
+        $response = $this->httpClient->sendRequest($request);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new RuntimeException('Unknown error occurred');
+        }
+
+        $categories = json_decode($response->getBody()->getContents(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Could not json decode response');
+        }
+
+        return $categories;
+    }
+
+    private function buildQueryFromMetadataMatcher(MetadataMatcher $metadataMatcher): string
+    {
+        $params = [];
+
+        foreach ($metadataMatcher->data() as $key => $match) {
+            if (FieldType::METADATA()->is($match['fieldType'])) {
+                $prefix = 'meta_' . $key . '_';
+            } else {
+                $prefix = 'property_' . $key . '_';
+            }
+
+            $params[] = $prefix . 'field=' . $match['field'];
+            $params[] = $prefix . 'operator=' . $match['operator']->getName();
+            $params[] = $prefix . 'value=' . $match['value'];
+        }
+
+        return implode('&', $params);
+    }
+
+    private function createIteratorFromResponse(ResponseInterface $response): Iterator
+    {
+        $data = json_decode($response->getBody()->getContents(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Could not json decode response from event store');
+        }
+
+        foreach ($data['entries'] as $entry) {
+            $entry['created_at'] = DateTimeImmutable::createFromFormat(
+                'Y-m-d\TH:i:s.u',
+                $entry['created_at'],
+                new DateTimeZone('UTC')
+            );
+
+            if (! $entry['created_at'] instanceof DateTimeImmutable) {
+                throw new RuntimeException('Could not create DateTimeImmutable object from event data');
+            }
+
+            yield $this->messageFactory->createMessageFromArray($entry['message_name'], $entry);
+        }
     }
 }
