@@ -362,7 +362,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_creates_stream_and_throws_forbidden_on_403(): void
+    public function it_cannot_create_stream_when_not_allowed(): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -394,7 +394,58 @@ class HttplugEventStoreTest extends TestCase
             ->willReturn($request);
 
         $response = $this->prophesize(ResponseInterface::class);
-        $response->getStatusCode()->willReturn(403)->shouldBeCalled();
+        $response->getStatusCode()->willReturn(405)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $messageConverter,
+            $httpClient->reveal(),
+            $uri->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->create(new Stream(new StreamName('somename'), new \ArrayIterator([$message]), ['some' => 'meta']));
+    }
+
+    /**
+     * @test
+     */
+    public function it_handles_unknown_errors_on_create(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        $messageConverter = new NoOpMessageConverter();
+
+        $message = TestDomainEvent::with(['foo' => 'bar'], 1);
+        $messageData = $messageConverter->convertToArray($message);
+        $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
+
+        $finalUri = $this->prophesize(UriInterface::class);
+        $finalUri = $finalUri->reveal();
+
+        $uri = $this->prophesize(UriInterface::class);
+        $uri->withPath('stream/somename')->willReturn($finalUri);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'POST',
+                $finalUri,
+                [
+                    'Content-Type' => 'application/vnd.eventstore.atom+json',
+                ],
+                json_encode([$messageData])
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
 
         $httpClient = $this->prophesize(HttpClient::class);
         $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
