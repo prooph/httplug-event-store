@@ -47,12 +47,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Prooph\\EventStore\\Httplug\\": "src/"
+            "Prooph\\EventStore\\Httplug\\": "src/",
+            "ProophTest\\EventStore\\": "vendor/prooph/event-store/tests/"
         }
     },
     "autoload-dev": {
         "psr-4": {
             "ProophTest\\EventStore\\Httplug\\": "tests/"
+        }
+    },
+    "config": {
+        "preferred-install": {
+            "prooph/*": "source"
         }
     },
     "scripts": {

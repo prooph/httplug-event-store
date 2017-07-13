@@ -24,6 +24,7 @@ use Prooph\EventStore\EventStore;
 use Prooph\EventStore\Exception\InvalidArgumentException;
 use Prooph\EventStore\Exception\RuntimeException;
 use Prooph\EventStore\Exception\StreamNotFound;
+use Prooph\EventStore\Httplug\Exception\NotAllowed;
 use Prooph\EventStore\Metadata\FieldType;
 use Prooph\EventStore\Metadata\MetadataMatcher;
 use Prooph\EventStore\Stream;
@@ -96,6 +97,9 @@ final class HttplugEventStore implements EventStore
                 break;
             case 404:
                 throw StreamNotFound::with($streamName);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -138,8 +142,10 @@ final class HttplugEventStore implements EventStore
                 }
                 break;
             case 400:
-            case 500:
                 throw new RuntimeException($response->getReasonPhrase());
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -166,6 +172,9 @@ final class HttplugEventStore implements EventStore
                 break;
             case 404:
                 throw StreamNotFound::with($streamName);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -194,6 +203,9 @@ final class HttplugEventStore implements EventStore
                 return $metadata;
             case 404:
                 throw StreamNotFound::with($streamName);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -213,6 +225,9 @@ final class HttplugEventStore implements EventStore
                 break;
             case 404:
                 throw StreamNotFound::with($streamName);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -249,6 +264,9 @@ final class HttplugEventStore implements EventStore
                 throw new InvalidArgumentException($response->getReasonPhrase());
             case 200:
                 return $this->createIteratorFromResponse($response);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -289,6 +307,9 @@ final class HttplugEventStore implements EventStore
                 throw new InvalidArgumentException($response->getReasonPhrase());
             case 200:
                 return $this->createIteratorFromResponse($response);
+            case 403:
+            case 405:
+                throw new NotAllowed();
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
@@ -326,17 +347,21 @@ final class HttplugEventStore implements EventStore
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $streamNames = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $streamNames;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
-
-        $streamNames = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $streamNames;
     }
 
     public function fetchStreamNamesRegex(
@@ -367,17 +392,21 @@ final class HttplugEventStore implements EventStore
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $streamNames = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $streamNames;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
-
-        $streamNames = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $streamNames;
     }
 
     public function fetchCategoryNames(?string $filter, int $limit = 20, int $offset = 0): array
@@ -400,17 +429,21 @@ final class HttplugEventStore implements EventStore
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $categories = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $categories;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
-
-        $categories = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $categories;
     }
 
     public function fetchCategoryNamesRegex(string $filter, int $limit = 20, int $offset = 0): array
@@ -429,17 +462,22 @@ final class HttplugEventStore implements EventStore
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $categories = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $categories;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
 
-        $categories = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $categories;
     }
 
     private function buildQueryFromMetadataMatcher(MetadataMatcher $metadataMatcher): string

@@ -17,6 +17,7 @@ use Http\Discovery\MessageFactoryDiscovery;
 use Http\Message\RequestFactory;
 use Prooph\EventStore\Exception\ProjectionNotFound;
 use Prooph\EventStore\Exception\RuntimeException;
+use Prooph\EventStore\Httplug\Exception\NotAllowed;
 use Prooph\EventStore\Projection\ProjectionManager;
 use Prooph\EventStore\Projection\ProjectionStatus;
 use Prooph\EventStore\Projection\Projector;
@@ -88,6 +89,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 204:
@@ -107,6 +111,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 204:
@@ -126,6 +133,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 204:
@@ -155,17 +165,21 @@ final class HttplugProjectionManager implements ProjectionManager
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $projectionNames = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $projectionNames;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
-
-        $projectionNames = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $projectionNames;
     }
 
     public function fetchProjectionNamesRegex(string $regex, int $limit = 20, int $offset = 0): array
@@ -184,17 +198,21 @@ final class HttplugProjectionManager implements ProjectionManager
 
         $response = $this->httpClient->sendRequest($request);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException('Unknown error occurred');
+        switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
+            case 200:
+                $projectionNames = json_decode($response->getBody()->getContents(), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new RuntimeException('Could not json decode response');
+                }
+
+                return $projectionNames;
+            default:
+                throw new RuntimeException('Unknown error occurred');
         }
-
-        $projectionNames = json_decode($response->getBody()->getContents(), true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Could not json decode response');
-        }
-
-        return $projectionNames;
     }
 
     public function fetchProjectionStatus(string $name): ProjectionStatus
@@ -210,6 +228,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 200:
@@ -232,6 +253,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 200:
@@ -260,6 +284,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $response = $this->httpClient->sendRequest($request);
 
         switch ($response->getStatusCode()) {
+            case 403:
+            case 405:
+                throw new NotAllowed();
             case 404:
                 throw ProjectionNotFound::withName($name);
             case 200:
