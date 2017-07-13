@@ -477,7 +477,6 @@ final class HttplugEventStore implements EventStore
             default:
                 throw new RuntimeException('Unknown error occurred');
         }
-
     }
 
     private function buildQueryFromMetadataMatcher(MetadataMatcher $metadataMatcher): string

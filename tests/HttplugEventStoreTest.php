@@ -25,7 +25,6 @@ use Prooph\EventStore\Httplug\Exception\NotAllowed;
 use Prooph\EventStore\Httplug\HttplugEventStore;
 use Prooph\EventStore\Stream;
 use Prooph\EventStore\StreamName;
-use ProophTest\Common\Mock\SomethingWasDone;
 use ProophTest\EventStore\Mock\TestDomainEvent;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -34,6 +33,7 @@ use Psr\Http\Message\UriInterface;
 class HttplugEventStoreTest extends TestCase
 {
     //<editor-fold desc="updateStreamMetadata">
+
     /**
      * @test
      */
@@ -230,9 +230,11 @@ class HttplugEventStoreTest extends TestCase
 
         $eventStore->updateStreamMetadata(new StreamName('unknown'), ['some' => 'value']);
     }
+
     //</editor-fold>
 
     //<editor-fold desc="create">
+
     /**
      * @test
      */
@@ -407,9 +409,11 @@ class HttplugEventStoreTest extends TestCase
 
         $eventStore->create(new Stream(new StreamName('somename'), new \ArrayIterator([$message]), ['some' => 'meta']));
     }
+
     //</editor-fold>
 
     //<editor-fold desc="appendTo">
+
     /**
      * @test
      */
@@ -458,9 +462,11 @@ class HttplugEventStoreTest extends TestCase
 
         $eventStore->appendTo(new StreamName('somename'), new \ArrayIterator([$message]));
     }
+
     //</editor-fold>
 
     //<editor-fold desc="delete">
+
     /**
      * @test
      */
@@ -622,5 +628,6 @@ class HttplugEventStoreTest extends TestCase
 
         $eventStore->delete(new StreamName('somename'));
     }
+
     //</editor-fold>
 }
