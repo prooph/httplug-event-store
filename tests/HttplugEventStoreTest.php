@@ -12,7 +12,6 @@ declare(strict_types=1);
 
 namespace ProophTest\HttplugEventStore;
 
-use GuzzleHttp\Psr7\Uri;
 use Http\Client\HttpClient;
 use Http\Message\RequestFactory;
 use PHPUnit\Framework\TestCase;
@@ -29,7 +28,6 @@ use Prooph\EventStore\StreamName;
 use ProophTest\EventStore\Mock\TestDomainEvent;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\UriInterface;
 
 class HttplugEventStoreTest extends TestCase
 {

@@ -12,7 +12,6 @@ declare(strict_types=1);
 
 namespace Prooph\EventStore\Httplug\Container\Projection;
 
-use Http\Discovery\UriFactoryDiscovery;
 use Interop\Config\ConfigurationTrait;
 use Interop\Config\RequiresConfigId;
 use Interop\Config\RequiresMandatoryOptions;
