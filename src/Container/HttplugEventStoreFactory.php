@@ -71,12 +71,6 @@ final class HttplugEventStoreFactory implements
         $config = $container->get('config');
         $config = $this->options($config, $this->configId);
 
-        if (isset($config['uri_factory'])) {
-            $uriFactory = $container->get($config['uri_factory']);
-        } else {
-            $uriFactory = UriFactoryDiscovery::find();
-        }
-
         $requestFactory = null;
 
         if (isset($config['request_factory'])) {
@@ -87,7 +81,6 @@ final class HttplugEventStoreFactory implements
             $container->get($config['message_factory']),
             $container->get($config['message_converter']),
             $container->get($config['http_client']),
-            $uriFactory->createUri($config['uri']),
             $requestFactory
         );
     }
@@ -109,7 +102,6 @@ final class HttplugEventStoreFactory implements
     {
         return [
             'http_client',
-            'uri',
         ];
     }
 }

@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace ProophTest\HttplugEventStore;
 
+use GuzzleHttp\Psr7\Uri;
 use Http\Client\HttpClient;
 use Http\Message\RequestFactory;
 use PHPUnit\Framework\TestCase;
@@ -39,12 +40,6 @@ class HttplugEventStoreTest extends TestCase
      */
     public function it_updates_stream_metadata(): void
     {
-        $finalUrl = $this->prophesize(UriInterface::class);
-        $finalUrl = $finalUrl->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('streammetadata/somename')->willReturn($finalUrl);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -52,7 +47,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUrl,
+                'streammetadata/somename',
                 [
                     'Content-Type' => 'application/json',
                 ],
@@ -70,7 +65,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -84,12 +78,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(NotAllowed::class);
 
-        $finalUrl = $this->prophesize(UriInterface::class);
-        $finalUrl = $finalUrl->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('streammetadata/unknown')->willReturn($finalUrl);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -97,7 +85,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUrl,
+                'streammetadata/unknown',
                 [
                     'Content-Type' => 'application/json',
                 ],
@@ -115,7 +103,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -129,12 +116,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(RuntimeException::class);
 
-        $finalUrl = $this->prophesize(UriInterface::class);
-        $finalUrl = $finalUrl->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('streammetadata/unknown')->willReturn($finalUrl);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -142,7 +123,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUrl,
+                'streammetadata/unknown',
                 [
                     'Content-Type' => 'application/json',
                 ],
@@ -160,7 +141,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -179,7 +159,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $this->prophesize(HttpClient::class)->reveal(),
-            $this->prophesize(UriInterface::class)->reveal(),
             $this->prophesize(RequestFactory::class)->reveal()
         );
 
@@ -193,12 +172,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(StreamNotFound::class);
 
-        $finalUrl = $this->prophesize(UriInterface::class);
-        $finalUrl = $finalUrl->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('streammetadata/unknown')->willReturn($finalUrl);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -206,7 +179,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUrl,
+                'streammetadata/unknown',
                 [
                     'Content-Type' => 'application/json',
                 ],
@@ -224,7 +197,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -246,16 +218,6 @@ class HttplugEventStoreTest extends TestCase
         $messageData = $messageConverter->convertToArray($message);
         $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $finalUri2 = $this->prophesize(UriInterface::class);
-        $finalUri2 = $finalUri2->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('stream/somename')->willReturn($finalUri);
-        $uri->withPath('streammetadata/somename')->willReturn($finalUri2);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -266,7 +228,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri,
+                'stream/somename',
                 [
                     'Content-Type' => 'application/vnd.eventstore.atom+json',
                 ],
@@ -277,7 +239,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri2,
+                'streammetadata/somename',
                 [
                     'Content-Type' => 'application/json',
                 ],
@@ -299,7 +261,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $messageConverter,
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -320,12 +281,6 @@ class HttplugEventStoreTest extends TestCase
         $messageData = $messageConverter->convertToArray($message);
         $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('stream/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -333,7 +288,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri,
+                'stream/somename',
                 [
                     'Content-Type' => 'application/vnd.eventstore.atom+json',
                 ],
@@ -352,7 +307,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $messageConverter,
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -372,12 +326,6 @@ class HttplugEventStoreTest extends TestCase
         $messageData = $messageConverter->convertToArray($message);
         $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('stream/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -385,7 +333,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri,
+                'stream/somename',
                 [
                     'Content-Type' => 'application/vnd.eventstore.atom+json',
                 ],
@@ -403,7 +351,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $messageConverter,
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -423,12 +370,6 @@ class HttplugEventStoreTest extends TestCase
         $messageData = $messageConverter->convertToArray($message);
         $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('stream/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -436,7 +377,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri,
+                'stream/somename',
                 [
                     'Content-Type' => 'application/vnd.eventstore.atom+json',
                 ],
@@ -454,7 +395,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $messageConverter,
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -476,12 +416,6 @@ class HttplugEventStoreTest extends TestCase
         $messageData = $messageConverter->convertToArray($message);
         $messageData['created_at'] = $messageData['created_at']->format('Y-m-d\TH:i:s.u');
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('stream/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -489,7 +423,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri,
+                'stream/somename',
                 [
                     'Content-Type' => 'application/vnd.eventstore.atom+json',
                 ],
@@ -507,7 +441,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $messageConverter,
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -523,12 +456,6 @@ class HttplugEventStoreTest extends TestCase
      */
     public function it_deletes_stream(): void
     {
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('delete/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -536,7 +463,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri
+                'delete/somename'
             )
             ->willReturn($request);
 
@@ -550,7 +477,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -564,12 +490,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(StreamNotFound::class);
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('delete/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -577,7 +497,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri
+                'delete/somename'
             )
             ->willReturn($request);
 
@@ -591,7 +511,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -605,12 +524,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(NotAllowed::class);
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('delete/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -618,7 +531,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri
+                'delete/somename'
             )
             ->willReturn($request);
 
@@ -632,7 +545,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 
@@ -646,12 +558,6 @@ class HttplugEventStoreTest extends TestCase
     {
         $this->expectException(RuntimeException::class);
 
-        $finalUri = $this->prophesize(UriInterface::class);
-        $finalUri = $finalUri->reveal();
-
-        $uri = $this->prophesize(UriInterface::class);
-        $uri->withPath('delete/somename')->willReturn($finalUri);
-
         $request = $this->prophesize(RequestInterface::class);
         $request = $request->reveal();
 
@@ -659,7 +565,7 @@ class HttplugEventStoreTest extends TestCase
         $requestFactory
             ->createRequest(
                 'POST',
-                $finalUri
+                'delete/somename'
             )
             ->willReturn($request);
 
@@ -673,7 +579,6 @@ class HttplugEventStoreTest extends TestCase
             $this->prophesize(MessageFactory::class)->reveal(),
             $this->prophesize(MessageConverter::class)->reveal(),
             $httpClient->reveal(),
-            $uri->reveal(),
             $requestFactory->reveal()
         );
 

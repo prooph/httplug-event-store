@@ -67,12 +67,6 @@ final class HttplugProjectionManagerFactory implements
         $config = $container->get('config');
         $config = $this->options($config, $this->configId);
 
-        if (isset($config['uri_factory'])) {
-            $uriFactory = $container->get($config['uri_factory']);
-        } else {
-            $uriFactory = UriFactoryDiscovery::find();
-        }
-
         $requestFactory = null;
 
         if (isset($config['request_factory'])) {
@@ -81,7 +75,6 @@ final class HttplugProjectionManagerFactory implements
 
         return new HttplugProjectionManager(
             $container->get($config['http_client']),
-            $uriFactory->createUri($config['uri']),
             $requestFactory
         );
     }
@@ -95,7 +88,6 @@ final class HttplugProjectionManagerFactory implements
     {
         return [
             'http_client',
-            'uri',
         ];
     }
 }

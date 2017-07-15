@@ -24,7 +24,6 @@ use Prooph\EventStore\Projection\Projector;
 use Prooph\EventStore\Projection\Query;
 use Prooph\EventStore\Projection\ReadModel;
 use Prooph\EventStore\Projection\ReadModelProjector;
-use Psr\Http\Message\UriInterface;
 
 final class HttplugProjectionManager implements ProjectionManager
 {
@@ -34,22 +33,15 @@ final class HttplugProjectionManager implements ProjectionManager
     private $httpClient;
 
     /**
-     * @var UriInterface
-     */
-    private $uri;
-
-    /**
      * @var RequestFactory
      */
     private $requestFactory;
 
     public function __construct(
         HttpClient $httpClient,
-        UriInterface $uri,
         RequestFactory $requestFactory = null
     ) {
         $this->httpClient = $httpClient;
-        $this->uri = $uri;
         $this->requestFactory = $requestFactory ?: MessageFactoryDiscovery::find();
     }
 
@@ -83,7 +75,7 @@ final class HttplugProjectionManager implements ProjectionManager
 
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('projection/delete/' . urlencode($name) . '/' . $deleteEmittedEvents)
+            'projection/delete/' . urlencode($name) . '/' . $deleteEmittedEvents
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -105,7 +97,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('projection/reset/' . urlencode($name))
+            'projection/reset/' . urlencode($name)
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -127,7 +119,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'POST',
-            $this->uri->withPath('projection/stop/' . urlencode($name))
+            'projection/stop/' . urlencode($name)
         );
 
         $response = $this->httpClient->sendRequest($request);
@@ -150,14 +142,14 @@ final class HttplugProjectionManager implements ProjectionManager
         $query = 'limit=' . $limit . '&offset=' . $offset;
 
         if (null !== $filter) {
-            $path = '/projections/' . urlencode($filter);
+            $uri = '/projections/' . urlencode($filter) . '?' . $query;
         } else {
-            $path = '/projections';
+            $uri = '/projections?' . $query;
         }
 
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath($path)->withQuery($query),
+            $uri,
             [
                 'Accept' => 'application/json',
             ]
@@ -184,13 +176,11 @@ final class HttplugProjectionManager implements ProjectionManager
 
     public function fetchProjectionNamesRegex(string $regex, int $limit = 20, int $offset = 0): array
     {
-        $query = 'limit=' . $limit . '&offset=' . $offset;
-
-        $path = 'projections-regex/' . urlencode($regex);
+        $uri = 'projections-regex/' . urlencode($regex) . '?limit=' . $limit . '&offset=' . $offset;
 
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath($path)->withQuery($query),
+            $uri,
             [
                 'Accept' => 'application/json',
             ]
@@ -219,7 +209,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('projection/status/' . urlencode($name)),
+            'projection/status/' . urlencode($name),
             [
                 'Accept' => 'application/json',
             ]
@@ -244,7 +234,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('projection/stream-positions/' . urlencode($name)),
+            'projection/stream-positions/' . urlencode($name),
             [
                 'Accept' => 'application/json',
             ]
@@ -275,7 +265,7 @@ final class HttplugProjectionManager implements ProjectionManager
     {
         $request = $this->requestFactory->createRequest(
             'GET',
-            $this->uri->withPath('projection/state/' . urlencode($name)),
+            'projection/state/' . urlencode($name),
             [
                 'Accept' => 'application/json',
             ]
