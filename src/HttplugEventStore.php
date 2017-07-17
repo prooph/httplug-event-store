@@ -186,7 +186,7 @@ final class HttplugEventStore implements EventStore
 
         switch ($response->getStatusCode()) {
             case 200:
-                $metadata = json_decode($response->getBody()->getContents());
+                $metadata = json_decode($response->getBody()->getContents(), true);
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     throw new RuntimeException('Could not json decode response');
@@ -214,9 +214,9 @@ final class HttplugEventStore implements EventStore
 
         switch ($response->getStatusCode()) {
             case 200:
-                break;
+                return true;
             case 404:
-                throw StreamNotFound::with($streamName);
+                return false;
             case 403:
             case 405:
                 throw new NotAllowed();

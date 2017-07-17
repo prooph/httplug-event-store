@@ -28,6 +28,7 @@ use Prooph\EventStore\StreamName;
 use ProophTest\EventStore\Mock\TestDomainEvent;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\StreamInterface;
 
 class HttplugEventStoreTest extends TestCase
 {
@@ -71,8 +72,9 @@ class HttplugEventStoreTest extends TestCase
 
     /**
      * @test
+     * @dataProvider forbiddenStatusCodes
      */
-    public function it_throws_exception_when_forbidden_to_update_metadata(): void
+    public function it_throws_exception_when_forbidden_to_update_metadata(int $forbiddenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -92,7 +94,7 @@ class HttplugEventStoreTest extends TestCase
             ->willReturn($request);
 
         $response = $this->prophesize(ResponseInterface::class);
-        $response->getStatusCode()->willReturn(405)->shouldBeCalled();
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
 
         $httpClient = $this->prophesize(HttpClient::class);
         $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
@@ -313,8 +315,9 @@ class HttplugEventStoreTest extends TestCase
 
     /**
      * @test
+     * @dataProvider forbiddenStatusCodes
      */
-    public function it_cannot_create_stream_when_not_allowed(): void
+    public function it_cannot_create_stream_when_not_allowed(int $forbiddenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -340,7 +343,7 @@ class HttplugEventStoreTest extends TestCase
             ->willReturn($request);
 
         $response = $this->prophesize(ResponseInterface::class);
-        $response->getStatusCode()->willReturn(405)->shouldBeCalled();
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
 
         $httpClient = $this->prophesize(HttpClient::class);
         $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
@@ -517,8 +520,9 @@ class HttplugEventStoreTest extends TestCase
 
     /**
      * @test
+     * @dataProvider forbiddenStatusCodes
      */
-    public function it_cannot_delete_stream_when_not_allowed(): void
+    public function it_cannot_delete_stream_when_not_allowed(int $forbiddenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -534,7 +538,7 @@ class HttplugEventStoreTest extends TestCase
             ->willReturn($request);
 
         $response = $this->prophesize(ResponseInterface::class);
-        $response->getStatusCode()->willReturn(405)->shouldBeCalled();
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
 
         $httpClient = $this->prophesize(HttpClient::class);
         $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
@@ -584,4 +588,237 @@ class HttplugEventStoreTest extends TestCase
     }
 
     //</editor-fold>
+
+    //<editor-fold desc="fetchStreamMetadata">
+
+    /**
+     * @test
+     */
+    public function it_fetches_stream_metadata(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streammetadata/somename',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $body = $this->prophesize(StreamInterface::class);
+        $body->getContents()->willReturn(json_encode(['foo' => 'bar']))->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($body->reveal())->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $streamMetadata = $eventStore->fetchStreamMetadata(new StreamName('somename'));
+
+        $this->assertSame(['foo' => 'bar'], $streamMetadata);
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_not_allowed_when_forbidden_to_fetch_stream_metadata(int $forbidenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streammetadata/somename',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbidenStatusCode)->shouldBeCalled();
+        $response->getBody()->shouldNotBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamMetadata(new StreamName('somename'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_stream_not_found_when_trying_to_fetch_unknown_stream_metadata(): void
+    {
+        $this->expectException(StreamNotFound::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streammetadata/somename',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(404)->shouldBeCalled();
+        $response->getBody()->shouldNotBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamMetadata(new StreamName('somename'));
+    }
+
+    //</editor-fold>
+
+    //<editor-fold desc="hasStream">
+
+    /**
+     * @test
+     */
+    public function it_returns_true_when_asking_for_existing_stream(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'has-stream/somename'
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $this->assertTrue($eventStore->hasStream(new StreamName('somename')));
+    }
+
+    /**
+     * @test
+     */
+    public function it_returns_false_when_asking_for_non_existing_stream(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'has-stream/somename'
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(404)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $this->assertFalse($eventStore->hasStream(new StreamName('somename')));
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_not_allowed_when_forbidden_to_ask_for_existince_of_a_stream(int $forbidenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'has-stream/somename'
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbidenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->hasStream(new StreamName('somename'));
+    }
+
+    //</editor-fold>
+
+    public function forbiddenStatusCodes(): array
+    {
+        return [
+            [403],
+            [405],
+        ];
+    }
 }
