@@ -678,7 +678,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_throws_exception_when_forbidden_to_fetch_stream_metadata(): void
+    public function it_throws_stream_not_found_when_unknown_fetch_stream_metadata(): void
     {
         $this->expectException(StreamNotFound::class);
 
