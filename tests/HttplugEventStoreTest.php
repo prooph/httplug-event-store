@@ -321,7 +321,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_cannot_create_stream_when_not_allowed(int $forbiddenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_create_stream(int $forbiddenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -526,7 +526,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_cannot_delete_stream_when_not_allowed(int $forbiddenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_delete(int $forbiddenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -640,7 +640,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_throws_not_allowed_when_forbidden_to_fetch_stream_metadata(int $forbidenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_fetch_stream_metadata(int $forbidenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -678,7 +678,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_throws_stream_not_found_when_trying_to_fetch_unknown_stream_metadata(): void
+    public function it_throws_exception_when_forbidden_to_fetch_stream_metadata(): void
     {
         $this->expectException(StreamNotFound::class);
 
@@ -716,7 +716,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_throws_exception_on_unknown_error_fetching_stream_metadata(): void
+    public function it_handles_unknown_errors_on_fetch_stream_metadata(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -822,7 +822,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_throws_not_allowed_when_forbidden_to_ask_for_existince_of_a_stream(int $forbidenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_call_has_stream(int $forbidenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -839,6 +839,40 @@ class HttplugEventStoreTest extends TestCase
 
         $response = $this->prophesize(ResponseInterface::class);
         $response->getStatusCode()->willReturn($forbidenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->hasStream(new StreamName('somename'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_handles_unknown_errors_on_has_stream(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'has-stream/somename'
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
 
         $httpClient = $this->prophesize(HttpClient::class);
         $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
@@ -1051,7 +1085,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_throws_not_allowed_when_load_is_forbidden(int $forbidenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_load(int $forbidenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -1125,7 +1159,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_throws_exception_on_unknown_error_when_loading(): void
+    public function it_handles_unknown_errors_on_load(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -1357,7 +1391,7 @@ class HttplugEventStoreTest extends TestCase
      * @test
      * @dataProvider forbiddenStatusCodes
      */
-    public function it_throws_not_allowed_when_load_reverse_is_forbidden(int $forbidenStatusCode): void
+    public function it_throws_exception_when_forbidden_to_load_reverse(int $forbidenStatusCode): void
     {
         $this->expectException(NotAllowed::class);
 
@@ -1431,7 +1465,7 @@ class HttplugEventStoreTest extends TestCase
     /**
      * @test
      */
-    public function it_throws_exception_on_unknown_error_when_loading_reverse(): void
+    public function it_handles_unknown_errors_on_load_reverse(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -1463,6 +1497,656 @@ class HttplugEventStoreTest extends TestCase
         );
 
         $eventStore->loadReverse(new StreamName('somename'));
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="fetchStreamNames">
+
+    /**
+     * @test
+     */
+    public function it_fetches_stream_names(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams?meta_0_field=key&meta_0_operator=EQUALS&meta_0_value=value&limit=20&offset=0',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo", "bar"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $metadataMatcher = new MetadataMatcher();
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('key', Operator::EQUALS(), 'value');
+
+        $streamNames = $eventStore->fetchStreamNames(null, $metadataMatcher);
+
+        $this->assertSame(['foo', 'bar'], $streamNames);
+    }
+
+    /**
+     * @test
+     */
+    public function it_fetches_stream_names_using_filter(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $streamNames = $eventStore->fetchStreamNames('foo', null, 30, 40);
+
+        $this->assertSame(['foo'], $streamNames);
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_exception_when_forbidden_to_fetch_stream_names(int $forbiddenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamNames('foo', null, 30, 40);
+    }
+
+    /**
+     * @test
+     */
+    public function it_handles_unknown_errors_on_fetch_stream_names(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamNames('foo', null, 30, 40);
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="fetchStreamNamesRegex">
+
+    /**
+     * @test
+     */
+    public function it_fetches_stream_names_regex(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams-regex/' . urlencode('^foo') . '?meta_0_field=key&meta_0_operator=EQUALS&meta_0_value=value&limit=20&offset=0',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo", "foobar"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $metadataMatcher = new MetadataMatcher();
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('key', Operator::EQUALS(), 'value');
+
+        $streamNames = $eventStore->fetchStreamNamesRegex('^foo', $metadataMatcher);
+
+        $this->assertSame(['foo', 'foobar'], $streamNames);
+    }
+
+    /**
+     * @test
+     */
+    public function it_fetches_stream_names_regex_using_limit_and_offset(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $streamNames = $eventStore->fetchStreamNamesRegex('^foo', null, 30, 40);
+
+        $this->assertSame(['foo'], $streamNames);
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_exception_when_forbidden_to_fetch_stream_names_regex(int $forbiddenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamNamesRegex('^foo', null, 30, 40);
+    }
+
+    /**
+     * @test
+     */
+    public function it_handles_unknown_errors_on_fetch_stream_names_regex(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streams-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamNamesRegex('^foo', null, 30, 40);
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="fetchCategoryNames">
+
+    /**
+     * @test
+     */
+    public function it_fetches_category_names(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories?limit=20&offset=0',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo", "bar"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $categoryNames = $eventStore->fetchCategoryNames(null);
+
+        $this->assertSame(['foo', 'bar'], $categoryNames);
+    }
+
+    /**
+     * @test
+     */
+    public function it_fetches_category_names_using_filter(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $categoryNames = $eventStore->fetchCategoryNames('foo', 30, 40);
+
+        $this->assertSame(['foo'], $categoryNames);
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_exception_when_forbidden_to_fetch_category_names(int $forbiddenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchCategoryNames('foo', 30, 40);
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_on_unknown_error_when_fetch_category_names(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories/foo?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchCategoryNames('foo', 30, 40);
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="fetchCategoryNamesRegex">
+
+    /**
+     * @test
+     */
+    public function it_fetches_category_names_regex(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories-regex/' . urlencode('^foo') . '?limit=20&offset=0',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo", "foobar"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $streamNames = $eventStore->fetchCategoryNamesRegex('^foo');
+
+        $this->assertSame(['foo', 'foobar'], $streamNames);
+    }
+
+    /**
+     * @test
+     */
+    public function it_fetches_category_names_regex_using_limit_and_offset(): void
+    {
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn('["foo"]')->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $categoryNames = $eventStore->fetchCategoryNamesRegex('^foo', 30, 40);
+
+        $this->assertSame(['foo'], $categoryNames);
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_exception_when_forbidden_to_fetch_category_names_regex(int $forbiddenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbiddenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchCategoryNamesRegex('^foo', 30, 40);
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_on_unknown_error_when_fetch_category_names_regex(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'categories-regex/' . urlencode('^foo') . '?limit=30&offset=40',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchCategoryNamesRegex('^foo', 30, 40);
     }
 
     //</editor-fold>
