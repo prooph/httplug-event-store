@@ -15,6 +15,7 @@ namespace ProophTest\HttplugEventStore;
 use Http\Client\HttpClient;
 use Http\Message\RequestFactory;
 use PHPUnit\Framework\TestCase;
+use Prooph\Common\Messaging\FQCNMessageFactory;
 use Prooph\Common\Messaging\MessageConverter;
 use Prooph\Common\Messaging\MessageFactory;
 use Prooph\Common\Messaging\NoOpMessageConverter;
@@ -23,6 +24,9 @@ use Prooph\EventStore\Exception\RuntimeException;
 use Prooph\EventStore\Exception\StreamNotFound;
 use Prooph\EventStore\Httplug\Exception\NotAllowed;
 use Prooph\EventStore\Httplug\HttplugEventStore;
+use Prooph\EventStore\Metadata\FieldType;
+use Prooph\EventStore\Metadata\MetadataMatcher;
+use Prooph\EventStore\Metadata\Operator;
 use Prooph\EventStore\Stream;
 use Prooph\EventStore\StreamName;
 use ProophTest\EventStore\Mock\TestDomainEvent;
@@ -709,6 +713,43 @@ class HttplugEventStoreTest extends TestCase
         $eventStore->fetchStreamMetadata(new StreamName('somename'));
     }
 
+    /**
+     * @test
+     */
+    public function it_throws_exception_on_unknown_error_fetching_stream_metadata(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'streammetadata/somename',
+                [
+                    'Accept' => 'application/json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->fetchStreamMetadata(new StreamName('somename'));
+    }
+
     //</editor-fold>
 
     //<editor-fold desc="hasStream">
@@ -814,11 +855,633 @@ class HttplugEventStoreTest extends TestCase
 
     //</editor-fold>
 
+    //<editor-fold description="load">
+
+    /**
+     * @test
+     * @dataProvider getTestEvents
+     */
+    public function it_loads_stream(array $testEvents): void
+    {
+        $testEvent1 = current($testEvents);
+        next($testEvents);
+        $testEvent2 = current($testEvents);
+        next($testEvents);
+        $testEvent3 = current($testEvents);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/foo/1/forward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $testEvent1Array = $testEvent1->toArray();
+        $testEvent1Array['created_at'] = $testEvent1->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent2Array = $testEvent2->toArray();
+        $testEvent2Array['created_at'] = $testEvent2->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent3Array = $testEvent3->toArray();
+        $testEvent3Array['created_at'] = $testEvent3->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $content = [
+            'title' => 'Event Stream \'foo\'',
+            'id' => 'http://localhost:8080/stream/foo',
+            'streamName' => 'foo',
+            '_links' => [
+                [
+                    'uri' => 'http://localhost:8080/stream/foo',
+                    'relation' => 'self',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/1/forward/3',
+                    'relation' => 'first',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/head/backward/3',
+                    'relation' => 'last',
+                ],
+            ],
+            'entries' => [
+                $testEvent1Array,
+                $testEvent2Array,
+                $testEvent3Array,
+            ],
+        ];
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn(json_encode($content))->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            new FQCNMessageFactory(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $events = $eventStore->load(new StreamName('foo'));
+
+        $this->assertInstanceOf(\Iterator::class, $events);
+
+        $this->assertTrue($testEvent1->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent1->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertTrue($testEvent2->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent2->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertTrue($testEvent3->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent3->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertNull($events->current());
+    }
+
+    /**
+     * @test
+     * @dataProvider getTestEvents
+     */
+    public function it_loads_stream_with_metadata_matcher_limit_and_offset(array $testEvents): void
+    {
+        $testEvent1 = current($testEvents);
+        next($testEvents);
+        $testEvent2 = current($testEvents);
+        next($testEvents);
+        $testEvent3 = current($testEvents);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/foo/2/forward/3?meta_0_field=key&meta_0_operator=EQUALS&meta_0_value=value&property_1_field=uuid&property_1_operator=EQUALS&property_1_value=' . $testEvent3->uuid()->toString(),
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $testEvent1Array = $testEvent1->toArray();
+        $testEvent1Array['created_at'] = $testEvent1->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent2Array = $testEvent2->toArray();
+        $testEvent2Array['created_at'] = $testEvent2->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent3Array = $testEvent3->toArray();
+        $testEvent3Array['created_at'] = $testEvent3->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $content = [
+            'title' => 'Event Stream \'foo\'',
+            'id' => 'http://localhost:8080/stream/foo',
+            'streamName' => 'foo',
+            '_links' => [
+                [
+                    'uri' => 'http://localhost:8080/stream/foo',
+                    'relation' => 'self',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/2/forward/3',
+                    'relation' => 'first',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/head/backward/3',
+                    'relation' => 'last',
+                ],
+            ],
+            'entries' => [
+                $testEvent3Array,
+            ],
+        ];
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn(json_encode($content))->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            new FQCNMessageFactory(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $metadataMatcher = new MetadataMatcher();
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('key', Operator::EQUALS(), 'value');
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('uuid', Operator::EQUALS(), $testEvent3->uuid()->toString(), FieldType::MESSAGE_PROPERTY());
+
+        $events = $eventStore->load(new StreamName('foo'), 2, 3, $metadataMatcher);
+
+        $this->assertInstanceOf(\Iterator::class, $events);
+
+        $this->assertTrue($testEvent3->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent3->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertNull($events->current());
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_not_allowed_when_load_is_forbidden(int $forbidenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/somename/1/forward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbidenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->load(new StreamName('somename'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_stream_not_found_on_load(): void
+    {
+        $this->expectException(StreamNotFound::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/unknown/1/forward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(404)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->load(new StreamName('unknown'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_on_unknown_error_when_loading(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/somename/1/forward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->load(new StreamName('somename'));
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="loadReverse">
+
+    /**
+     * @test
+     * @dataProvider getTestEvents
+     */
+    public function it_loads_stream_reverse(array $testEvents): void
+    {
+        $testEvent1 = current($testEvents);
+        next($testEvents);
+        $testEvent2 = current($testEvents);
+        next($testEvents);
+        $testEvent3 = current($testEvents);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/foo/' . PHP_INT_MAX . '/backward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $testEvent1Array = $testEvent1->toArray();
+        $testEvent1Array['created_at'] = $testEvent1->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent2Array = $testEvent2->toArray();
+        $testEvent2Array['created_at'] = $testEvent2->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent3Array = $testEvent3->toArray();
+        $testEvent3Array['created_at'] = $testEvent3->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $content = [
+            'title' => 'Event Stream \'foo\'',
+            'id' => 'http://localhost:8080/stream/foo',
+            'streamName' => 'foo',
+            '_links' => [
+                [
+                    'uri' => 'http://localhost:8080/stream/foo',
+                    'relation' => 'self',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/1/forward/3',
+                    'relation' => 'first',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/head/backward/3',
+                    'relation' => 'last',
+                ],
+            ],
+            'entries' => [
+                $testEvent3Array,
+                $testEvent2Array,
+                $testEvent1Array,
+            ],
+        ];
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn(json_encode($content))->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            new FQCNMessageFactory(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $events = $eventStore->loadReverse(new StreamName('foo'));
+
+        $this->assertInstanceOf(\Iterator::class, $events);
+
+        $this->assertTrue($testEvent3->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent3->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertTrue($testEvent2->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent2->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertTrue($testEvent1->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent1->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertNull($events->current());
+    }
+
+    /**
+     * @test
+     * @dataProvider getTestEvents
+     */
+    public function it_loads_stream_reverse_with_metadata_matcher_limit_and_offset(array $testEvents): void
+    {
+        $testEvent1 = current($testEvents);
+        next($testEvents);
+        $testEvent2 = current($testEvents);
+        next($testEvents);
+        $testEvent3 = current($testEvents);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/foo/3/backward/3?meta_0_field=key&meta_0_operator=EQUALS&meta_0_value=value&property_1_field=uuid&property_1_operator=EQUALS&property_1_value=' . $testEvent3->uuid()->toString(),
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $testEvent1Array = $testEvent1->toArray();
+        $testEvent1Array['created_at'] = $testEvent1->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent2Array = $testEvent2->toArray();
+        $testEvent2Array['created_at'] = $testEvent2->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $testEvent3Array = $testEvent3->toArray();
+        $testEvent3Array['created_at'] = $testEvent3->createdAt()->format('Y-m-d\TH:i:s.u');
+
+        $content = [
+            'title' => 'Event Stream \'foo\'',
+            'id' => 'http://localhost:8080/stream/foo',
+            'streamName' => 'foo',
+            '_links' => [
+                [
+                    'uri' => 'http://localhost:8080/stream/foo',
+                    'relation' => 'self',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/2/forward/3',
+                    'relation' => 'first',
+                ],
+                [
+                    'uri' => 'http://localhost:8080/stream/foo/head/backward/3',
+                    'relation' => 'last',
+                ],
+            ],
+            'entries' => [
+                $testEvent3Array,
+            ],
+        ];
+
+        $stream = $this->prophesize(StreamInterface::class);
+        $stream->getContents()->willReturn(json_encode($content))->shouldBeCalled();
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(200)->shouldBeCalled();
+        $response->getBody()->willReturn($stream->reveal());
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            new FQCNMessageFactory(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $metadataMatcher = new MetadataMatcher();
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('key', Operator::EQUALS(), 'value');
+        $metadataMatcher = $metadataMatcher->withMetadataMatch('uuid', Operator::EQUALS(), $testEvent3->uuid()->toString(), FieldType::MESSAGE_PROPERTY());
+
+        $events = $eventStore->loadReverse(new StreamName('foo'), 3, 3, $metadataMatcher);
+
+        $this->assertInstanceOf(\Iterator::class, $events);
+
+        $this->assertTrue($testEvent3->uuid()->equals($events->current()->uuid()));
+        $this->assertSame($testEvent3->payload(), $events->current()->payload());
+
+        $events->next();
+
+        $this->assertNull($events->current());
+    }
+
+    /**
+     * @test
+     * @dataProvider forbiddenStatusCodes
+     */
+    public function it_throws_not_allowed_when_load_reverse_is_forbidden(int $forbidenStatusCode): void
+    {
+        $this->expectException(NotAllowed::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/somename/' . PHP_INT_MAX . '/backward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn($forbidenStatusCode)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->loadReverse(new StreamName('somename'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_stream_not_found_on_load_reverse(): void
+    {
+        $this->expectException(StreamNotFound::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/unknown/' . PHP_INT_MAX . '/backward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(404)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->loadReverse(new StreamName('unknown'));
+    }
+
+    /**
+     * @test
+     */
+    public function it_throws_exception_on_unknown_error_when_loading_reverse(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        $request = $this->prophesize(RequestInterface::class);
+        $request = $request->reveal();
+
+        $requestFactory = $this->prophesize(RequestFactory::class);
+        $requestFactory
+            ->createRequest(
+                'GET',
+                'stream/somename/' . PHP_INT_MAX . '/backward/' . PHP_INT_MAX . '?',
+                [
+                    'Accept' => 'application/vnd.eventstore.atom+json',
+                ]
+            )
+            ->willReturn($request);
+
+        $response = $this->prophesize(ResponseInterface::class);
+        $response->getStatusCode()->willReturn(500)->shouldBeCalled();
+
+        $httpClient = $this->prophesize(HttpClient::class);
+        $httpClient->sendRequest($request)->willReturn($response->reveal())->shouldBeCalled();
+
+        $eventStore = new HttplugEventStore(
+            $this->prophesize(MessageFactory::class)->reveal(),
+            $this->prophesize(MessageConverter::class)->reveal(),
+            $httpClient->reveal(),
+            $requestFactory->reveal()
+        );
+
+        $eventStore->loadReverse(new StreamName('somename'));
+    }
+
+    //</editor-fold>
+
     public function forbiddenStatusCodes(): array
     {
         return [
             [403],
             [405],
         ];
+    }
+
+    public function getTestEvents(): array
+    {
+        $event1 = TestDomainEvent::with(['foo' => 'bar'], 1);
+        $event2 = TestDomainEvent::with(['foo' => 'baz'], 2);
+        $event3 = TestDomainEvent::with(['foo' => 'bam'], 3);
+        $event3 = $event3->withAddedMetadata('key', 'value');
+
+        return [[[$event1, $event2, $event3]]];
     }
 }

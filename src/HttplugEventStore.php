@@ -467,8 +467,12 @@ final class HttplugEventStore implements EventStore
         }
     }
 
-    private function buildQueryFromMetadataMatcher(MetadataMatcher $metadataMatcher): string
+    private function buildQueryFromMetadataMatcher(MetadataMatcher $metadataMatcher = null): string
     {
+        if (null === $metadataMatcher) {
+            return '';
+        }
+
         $params = [];
 
         foreach ($metadataMatcher->data() as $key => $match) {
