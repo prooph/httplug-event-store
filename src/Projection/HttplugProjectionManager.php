@@ -142,9 +142,9 @@ final class HttplugProjectionManager implements ProjectionManager
         $query = 'limit=' . $limit . '&offset=' . $offset;
 
         if (null !== $filter) {
-            $uri = '/projections/' . urlencode($filter) . '?' . $query;
+            $uri = 'projections/' . urlencode($filter) . '?' . $query;
         } else {
-            $uri = '/projections?' . $query;
+            $uri = 'projections?' . $query;
         }
 
         $request = $this->requestFactory->createRequest(
