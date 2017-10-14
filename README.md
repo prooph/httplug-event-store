@@ -25,7 +25,7 @@ $streamEvents =$eventStore->load(new StreamName('test-stream'));
 
 ## Support
 
-- Ask questions on [prooph-users](https://groups.google.com/forum/?hl=de#!forum/prooph) mailing list.
+- Ask questions on Stack Overflow tagged with [#prooph](https://stackoverflow.com/questions/tagged/prooph).
 - File issues at [https://github.com/prooph/event-store-http-api/issues](https://github.com/prooph/event-store-http-api/issues).
 - Say hello in the [prooph gitter](https://gitter.im/prooph/improoph) chat.
 
