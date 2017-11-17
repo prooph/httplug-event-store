@@ -26,7 +26,11 @@
     ],
     "require": {
         "php": "^7.1",
-        "prooph/event-store" : "^7.2"
+        "prooph/event-store": "^7.2",
+        "php-http/httplug": "^1.1.0",
+        "psr/http-message": "^1.0.1",
+        "php-http/message-factory": "^1.0.2",
+        "php-http/discovery": "^1.1.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^6.0",
@@ -43,13 +47,13 @@
     },
     "autoload": {
         "psr-4": {
-            "Prooph\\EventStore\\Httplug\\": "src/"
+            "Prooph\\EventStore\\Httplug\\": "src/",
+            "ProophTest\\EventStore\\": "vendor/prooph/event-store/tests/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "ProophTest\\EventStore\\Httplug\\": "tests/",
-            "ProophTest\\EventStore\\": "vendor/prooph/event-store/tests/"
+            "ProophTest\\EventStore\\Httplug\\": "tests/"
         }
     },
     "config": {

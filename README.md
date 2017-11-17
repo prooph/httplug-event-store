@@ -17,10 +17,14 @@ The httplug event store is an implementation that uses httplug to communicate wi
 This example uses Guzzle6 httplug adapter
 
 ```php
+$messageFactory = new \Prooph\Common\Messaging\FQCNMessageFactory();
+$messageConverter = new \Prooph\Common\Messaging\NoOpMessageConverter();
 $httplug = new \Http\Adapter\Guzzle6\Client();
-$eventStore = new \Prooph\EventStore\Httplug($httpPlug, $options);
+$uri = new \GuzzleHttp\Psr7\Uri('http:/localhost:8080');
 
-$streamEvents =$eventStore->load(new StreamName('test-stream'));
+$eventStore = new \Prooph\EventStore\Httplug\HttplugEventStore($messageFactory, $messageConverter, $httpPlug, $uri);
+
+$streamEvents = $eventStore->load(new StreamName('test-stream'));
 ```
 
 ## Support
